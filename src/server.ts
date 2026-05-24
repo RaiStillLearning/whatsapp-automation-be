@@ -3,6 +3,8 @@ import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
+import env from "./config/env";
 import logger from "./lib/logger";
 import { authRoutes } from "./routes/auth.routes";
 import { whatsappRoutes } from "./routes/whatsapp.routes";
@@ -13,9 +15,9 @@ import { startMessageWorker } from "./workers/message.worker";
 
 const server = Fastify({
   logger: {
-    level: process.env.LOG_LEVEL || "info",
+    level: env.LOG_LEVEL,
     transport:
-      process.env.NODE_ENV === "development"
+      env.NODE_ENV === "development"
         ? {
             target: "pino-pretty",
             options: {
@@ -30,23 +32,37 @@ const server = Fastify({
 
 // Register CORS
 server.register(fastifyCors, {
-  origin: ["http://localhost:3000"],
+  origin: [env.FRONTEND_URL],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 
 // Register Cookie
 server.register(fastifyCookie, {
-  secret: process.env.JWT_SECRET || "super-secret-key-change-in-production",
+  secret: env.JWT_SECRET,
 });
 
 // Register JWT
 server.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET || "super-secret-key-change-in-production",
+  secret: env.JWT_SECRET,
   cookie: {
     cookieName: "token",
     signed: false,
   },
+});
+
+// Register Rate Limiting
+server.register(rateLimit, {
+  global: true,
+  max: 150, // High standard default limit per IP
+  timeWindow: "1 minute",
+  errorResponseBuilder: (request, context) => ({
+    success: false,
+    error: {
+      code: "TOO_MANY_REQUESTS",
+      message: `Rate limit exceeded. Please try again after ${context.after}.`,
+    },
+  }),
 });
 
 // Register Routes
@@ -55,13 +71,10 @@ server.register(whatsappRoutes, { prefix: "/api/whatsapp" });
 server.register(automationRoutes, { prefix: "/api/automations" });
 server.register(dashboardRoutes, { prefix: "/api/dashboard" });
 
-const PORT = Number(process.env.PORT) || 3001;
-const HOST = process.env.HOST || "0.0.0.0";
-
 async function start() {
   try {
-    await server.listen({ port: PORT, host: HOST });
-    logger.info(`Server running on ${HOST}:${PORT}`);
+    await server.listen({ port: env.PORT, host: env.HOST });
+    logger.info(`Server running on ${env.HOST}:${env.PORT}`);
     
     // Start BullMQ worker
     startMessageWorker();
@@ -79,3 +92,4 @@ async function start() {
 start();
 
 export default server;
+

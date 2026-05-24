@@ -104,7 +104,8 @@ export function registerClientEvents(
 
   // Incoming message — push to BullMQ queue
   client.on("message", async (msg) => {
-    // Only process personal messages, not group messages or status broadcasts
+    // Safety Loop Guard: Only process incoming messages, completely ignore self-dispatched ones
+    if (msg.fromMe) return;
     if (msg.from === "status@broadcast") return;
     if (msg.from.endsWith("@g.us")) return;
 

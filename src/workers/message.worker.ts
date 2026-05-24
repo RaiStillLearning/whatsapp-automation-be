@@ -17,7 +17,7 @@ async function processMessage(job: Job<MessageJobData>): Promise<void> {
   logger.info({ userId, contactNumber, waMessageId }, "Processing incoming message");
 
   // Idempotency check — prevent duplicate processing
-  const isDuplicate = await messageRepo.existsByWaMessageId(userId, contactNumber, messageBody);
+  const isDuplicate = await messageRepo.existsByWaMessageId(waMessageId);
   if (isDuplicate) {
     logger.info({ waMessageId }, "Duplicate message detected, skipping");
     return;
@@ -25,6 +25,7 @@ async function processMessage(job: Job<MessageJobData>): Promise<void> {
 
   // 1. Store incoming message
   await messageRepo.create({
+    wa_message_id: waMessageId,
     user_id: userId,
     contact_name: contactName,
     contact_number: contactNumber,
@@ -38,6 +39,14 @@ async function processMessage(job: Job<MessageJobData>): Promise<void> {
     contact: contactName || contactNumber,
     body: messageBody.substring(0, 100), // Truncate for metadata
   });
+
+  // Loop & Spam Protection Check: 1 reply max per contact per 30s
+  const cooldownKey = `whatsapp:cooldown:${userId}:${contactNumber}`;
+  const isCooledDown = await redis.get(cooldownKey);
+  if (isCooledDown) {
+    logger.info({ userId, contactNumber }, "Automated reply skipped due to 30-second loop protection cooldown");
+    return;
+  }
 
   // 3. Fetch user's active automation rules
   const rules = await automationRepo.getActiveByUserId(userId);
@@ -88,15 +97,19 @@ async function processMessage(job: Job<MessageJobData>): Promise<void> {
       // Stop typing state immediately before sending message
       await chat.clearState().catch(() => {});
     } catch (chatError) {
-      logger.warn({ userId, chatId, chatError }, "Failed to simulate typing state, falling back to direct send");
+      logger.warn({ userId, chatId, chatError }, "Failed to simulate typing state, falling back to safe delay");
       // Fallback: simple safe default delay of 2.5 seconds
       await new Promise((resolve) => setTimeout(resolve, 2500));
     }
 
-    await client.sendMessage(chatId, matchedRule.reply);
+    const sentMessage = await client.sendMessage(chatId, matchedRule.reply);
+
+    // Set 30-second cooldown in Redis for this customer to prevent bot reply loops
+    await redis.set(cooldownKey, "1", "EX", 30);
 
     // 6. Store outgoing automated message
     await messageRepo.create({
+      wa_message_id: sentMessage.id._serialized, // True WhatsApp unique ID
       user_id: userId,
       contact_name: contactName,
       contact_number: contactNumber,

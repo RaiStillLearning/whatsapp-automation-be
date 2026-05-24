@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import whatsappManager from "./manager";
 import { WhatsappRepository } from "./repository";
+import env from "@/config/env";
 import logger from "@/lib/logger";
 
 const repository = new WhatsappRepository();
@@ -125,12 +126,14 @@ export class WhatsappController {
     // Set SSE headers — must include CORS manually because reply.raw.writeHead()
     // bypasses Fastify's plugin pipeline (including @fastify/cors)
     const origin = request.headers.origin;
+    const allowedOrigin = origin === env.FRONTEND_URL ? origin : env.FRONTEND_URL;
+
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no", // Disable nginx buffering
-      "Access-Control-Allow-Origin": origin || "http://localhost:3000",
+      "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Credentials": "true",
     });
 

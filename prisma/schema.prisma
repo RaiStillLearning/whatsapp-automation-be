@@ -53,6 +53,7 @@ model AutomationRule {
 
 model MessageLog {
   id              String   @id @default(uuid())
+  wa_message_id   String   @unique @map("wa_message_id")
   user_id         String   @map("user_id")
   contact_name    String?  @map("contact_name")
   contact_number  String   @map("contact_number")

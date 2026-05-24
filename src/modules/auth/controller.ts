@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { AuthService } from "./service";
 import { signupSchema, loginSchema } from "./schema";
+import env from "@/config/env";
 
 export class AuthController {
   private service = new AuthService();
@@ -20,14 +21,17 @@ export class AuthController {
 
     try {
       const user = await this.service.signup(parseResult.data);
-      const token = request.server.jwt.sign({ id: user.id, email: user.email });
+      const token = request.server.jwt.sign(
+        { id: user.id, email: user.email },
+        { expiresIn: "1d" }
+      );
 
       reply.setCookie("token", token, {
         path: "/",
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: 24 * 60 * 60, // 1 day
       });
 
       return reply.status(201).send({
@@ -60,14 +64,17 @@ export class AuthController {
 
     try {
       const user = await this.service.login(parseResult.data);
-      const token = request.server.jwt.sign({ id: user.id, email: user.email });
+      const token = request.server.jwt.sign(
+        { id: user.id, email: user.email },
+        { expiresIn: "1d" }
+      );
 
       reply.setCookie("token", token, {
         path: "/",
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60, // 7 days
+        maxAge: 24 * 60 * 60, // 1 day
       });
 
       return reply.send({
@@ -89,7 +96,7 @@ export class AuthController {
     reply.clearCookie("token", {
       path: "/",
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: env.NODE_ENV === "production",
       sameSite: "lax",
     });
 

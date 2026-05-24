@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 
 export class MessageLogRepository {
   async create(data: {
+    wa_message_id: string;
     user_id: string;
     contact_name: string | null;
     contact_number: string;
@@ -13,17 +14,9 @@ export class MessageLogRepository {
     return prisma.messageLog.create({ data });
   }
 
-  async existsByWaMessageId(userId: string, contactNumber: string, messageBody: string) {
-    // Check for duplicate by matching user + contact + body in last 5 seconds
-    const fiveSecondsAgo = new Date(Date.now() - 5000);
-    const existing = await prisma.messageLog.findFirst({
-      where: {
-        user_id: userId,
-        contact_number: contactNumber,
-        message_body: messageBody,
-        direction: "incoming",
-        created_at: { gte: fiveSecondsAgo },
-      },
+  async existsByWaMessageId(waMessageId: string) {
+    const existing = await prisma.messageLog.findUnique({
+      where: { wa_message_id: waMessageId },
     });
     return !!existing;
   }
