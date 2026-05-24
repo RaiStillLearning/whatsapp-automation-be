@@ -3,4 +3,6 @@ node_modules
 /src/generated/prisma
 /dist
 /prisma/migrations
+.wwebjs_auth
+.wwebjs_cache
 *.log

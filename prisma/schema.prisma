@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -11,3 +9,71 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String
+  created_at    DateTime @default(now()) @map("created_at")
+  updated_at    DateTime @updatedAt @map("updated_at")
+
+  whatsapp_session  WhatsappSession?
+  automation_rules  AutomationRule[]
+  message_logs      MessageLog[]
+  activity_logs     ActivityLog[]
+
+  @@map("users")
+}
+
+model WhatsappSession {
+  id          String   @id @default(uuid())
+  user_id     String   @unique @map("user_id")
+  phone       String?
+  status      String   @default("disconnected")   // disconnected | qr_pending | authenticated | reconnecting | expired | failed
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@map("whatsapp_sessions")
+}
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  user_id     String   @map("user_id")
+  keyword     String
+  reply       String
+  is_active   Boolean  @default(true) @map("is_active")
+  created_at  DateTime @default(now()) @map("created_at")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@map("automation_rules")
+}
+
+model MessageLog {
+  id              String   @id @default(uuid())
+  user_id         String   @map("user_id")
+  contact_name    String?  @map("contact_name")
+  contact_number  String   @map("contact_number")
+  message_body    String   @map("message_body")
+  direction       String   // incoming | outgoing
+  is_automated    Boolean  @default(false) @map("is_automated")
+  rule_id         String?  @map("rule_id")
+  created_at      DateTime @default(now()) @map("created_at")
+
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@map("message_logs")
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  user_id     String   @map("user_id")
+  event_type  String   @map("event_type") // message_received | reply_sent | session_connected | session_disconnected | rule_created | rule_toggled
+  metadata    Json?
+  created_at  DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@map("activity_logs")
+}
+
